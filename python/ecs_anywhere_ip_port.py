@@ -217,7 +217,8 @@ class EcsAnyWhereIpPort(object):
         # returns 100 Arns by default
         tasks = self.ecs_client.list_tasks(
             cluster = self.cluster,
-            serviceName = service)
+            serviceName = service,
+            desiredStatus = 'RUNNING')
         taskArns =  tasks.get('taskArns')
         if not taskArns:
             return []
