@@ -1,0 +1,39 @@
+{
+  "class": "AS3",
+  "action": "deploy",
+  "persist": true,
+  "declaration": {
+    "class": "ADC",
+    "schemaVersion": "3.27.0",
+    "id": "EcsAnywhere",
+    "EcsAnywhere": {
+      "class": "Tenant",
+      "{{svc}}": {
+        "class": "Application",
+        "template": "generic",
+        "{{svc}}": {
+          "class": "Service_TCP",
+          "virtualPort": 80,
+          "virtualAddresses": [
+            "192.0.2.10"
+          ],
+          "pool": "{{svc}}_pool",
+          "persistenceMethods": []
+        },
+        "{{svc}}_pool": {
+          "class": "Pool",
+          "monitors": [
+            "tcp"
+          ],
+          "members": [
+            {
+              "servicePort": 80,
+		"addressDiscovery": "event",
+		"shareNodes": true
+            }
+          ]
+        }
+      }
+    }
+  }
+}
