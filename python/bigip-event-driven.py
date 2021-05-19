@@ -7,6 +7,8 @@ import os
 import json
 import sys
 import logging
+import boto3
+
 #
 # Demo of automating a BIG-IP configuration for ECS AnyWhere services.
 #
@@ -28,7 +30,9 @@ ECS_TEMPLATE = """ {
                 "pool": "svc_pool"
              }}"""
 
-class BigipController(object):
+logger = logging.getLogger('bigip_ecs_controller')
+
+class BigipEcsController(object):
     def __init__(self, cluster, username,password, url, tenant, template_file, token=False):
         self.cluster = cluster
         self.username = username
@@ -43,12 +47,17 @@ class BigipController(object):
         else:
             self.icr = iControlRESTSession(username, password)
         
-    def update_services(self,cache=True):
+    def update_services(self,cache=False):
 
         services = self.client.list_services()
         if cache:
+            # TODO
+            # this is not working well
             services = list(set(services) - set(self.service_map.keys()))
-
+            if not services:
+                return
+        else:
+            self.service_map = {}
         for svc,details in self.client.describe_service(services).items():
             tags = details['tags']
             taskDefinition = details['taskDefinition']
@@ -60,14 +69,19 @@ class BigipController(object):
                 if tag.get('key') == 'f5-external-ip':
                     ip = tag.get('value')
                     create_config = True
+                    logger.info('updating service: %s' %(svc))
                 if tag.get('key').startswith('f5-external-port-'):
                     ports.append((tag.get('key')[17:],tag.get('value')))
             if ip:
                 self.service_map[svc] = {'ip':ip }
             if ports:
-
                 self.service_map[svc]['ports'] = ports
             elif ip:
+                # expose first container ports
+                if not taskDefinition['containerDefinitions'][0]['portMappings']:
+                    logger.error("skipping %s, missing portMapping" %(svc))
+                    del self.service_map[svc]
+                    continue
                 containerPort = str(taskDefinition['containerDefinitions'][0]['portMappings'][0]['containerPort'])
                 self.service_map[svc]['ports'] = [(containerPort,containerPort)]
 
@@ -104,9 +118,14 @@ class BigipController(object):
 
         for svc_name,input_params in self.service_map.items():
             nodes = self.client.get_ip_port(svc_name)
+
             input_ports = input_params['ports']
-            container_ports = nodes[0]['ports']
-            hostPort = nodes[0]['port']
+            if not nodes:
+                container_ports = []
+                hostPort = -1
+            else:
+                container_ports = nodes[0]['ports']
+                hostPort = nodes[0]['port']
 
             for p in input_ports:
                 output_nodes = []                
@@ -125,8 +144,7 @@ class BigipController(object):
                     output_nodes.append({'ip':n['ip'],'port':hostPort,'id':n['id']})
 
                 svc_port = "%s_%s" %(svc_name, port)
-                #print(svc_port)
-                #print(output_nodes)                
+                logger.info('updating pool: %s' %(svc_port))                
                 r = self.icr.post(self.url + "/mgmt/shared/service-discovery/task/~%s~%s~%s_pool/nodes" %(self.tenant,svc_port,svc_port),data=json.dumps(output_nodes))
                 #print(r)
 
@@ -141,6 +159,8 @@ if __name__ == "__main__":
     parser.add_argument("--token",help="use token (remote auth)",action="store_true",default=False)
     parser.add_argument("-u", "--username",default='admin')
     parser.add_argument("-p", "--password",default='admin')
+    parser.add_argument("--password-s3-bucket",dest="password_s3_bucket")
+    parser.add_argument("--password-s3-key",dest="password_s3_key")        
     parser.add_argument("--interval",help="polling cycle",default=10,type=int)
     parser.add_argument("--level",help="log level (default info)",default="info")
 #    parser.add_argument("--run-once",help="run once",action="store_true",default=False)
@@ -150,18 +170,34 @@ if __name__ == "__main__":
     username = args.username
     password = args.password
     cluster = args.cluster
-    service = args.service
+#    service = args.service
     tenant = args.tenant
 
+    
+    logger.setLevel(logging.INFO)
+
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+
     if args.level == 'debug':
-        logging.basicConfig(level=logging.DEBUG)
-    else:
-        logging.basicConfig(level=logging.INFO)
+        logger.setLevel(logging.DEBUG)
+        ch.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    
     if 'F5_USERNAME' in os.environ:
         username = os.environ['F5_USERNAME']
 
     if 'F5_PASSWORD' in os.environ:
         password = os.environ['F5_PASSWORD']
+
+    if args.password_s3_bucket and args.password_s3_key:
+        s3_client = boto3.resource('s3')
+        object = s3_client.Object(args.password_s3_bucket,args.password_s3_key)
+        password = object.get()['Body'].read().strip()
 
     if 'CLUSTER_NAME' in os.environ:
         cluster = os.environ['CLUSTER_NAME']
@@ -169,13 +205,16 @@ if __name__ == "__main__":
     if 'SERVICE_NAME' in os.environ:
         service = os.environ['SERVICE_NAME']    
 
-    controller = BigipController(cluster, username, password, args.url, tenant, args.template)
+    controller = BigipEcsController(cluster, username, password, args.url, tenant, args.template)
     import time
     while 1:
-        logging.info('updating services')
-        controller.update_services()
-        logging.info('generating templates')        
-        controller.generate_template()
-        logging.info('updating pools')                
-        controller.update_pools()
+        try:
+            controller.update_services()
+            logger.info('generating templates')        
+            controller.generate_template()
+            controller.update_pools()
+        except Exception as e:
+            logger.error(e)
+            logger.exception("message")
+            pass
         time.sleep(args.interval)
