@@ -202,10 +202,17 @@ if __name__ == "__main__":
     if 'CLUSTER_NAME' in os.environ:
         cluster = os.environ['CLUSTER_NAME']
 
+    url = args.url
+    if 'URL' in os.environ:
+        url = os.environ['URL']
+
+    if 'TENANT' in os.environ:
+        tenant = os.environ['TENANT']        
+
     if 'SERVICE_NAME' in os.environ:
         service = os.environ['SERVICE_NAME']    
 
-    controller = BigipEcsController(cluster, username, password, args.url, tenant, args.template)
+    controller = BigipEcsController(cluster, username, password, url, tenant, args.template)
     import time
     while 1:
         try:
