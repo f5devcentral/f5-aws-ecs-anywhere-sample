@@ -17,11 +17,17 @@ Once you have built the container you can either run it locally or in ECS.
 
 Before you can run the controller in ECS you need to have appropriate taskExecution and taskRoles configured.
 
-In general the controller will need read-only access to ECS/SSM and a specific AWS Secret (BIG-IP password)
+In general the controller will need read-only access to ECS/SSM/SQS and a specific AWS Secret (BIG-IP password)
 
 See [external-task-definition-bigip-ecs-ctrl.json](external-task-definition-bigip-ecs-ctrl.json) for an example of how to create a task definition.
 
-You will want to modify the input variables to match your environment.  
+You will want to modify the input variables to match your environment.
+
+### SQS Queue
+
+The controller by default will check for updates every 30 seconds.  You can also configure the controller
+to watch a SQS queue that contains ECS Task event changes.  It will use long polling to monitor the queue
+and only apply updates if there are messages in the queue.
 
 ## Python files
 
@@ -62,6 +68,7 @@ There are some environment variables you will want to set.
 export AWS_DEFAULT_REGION=us-east-1
 export CLUSTER_NAME=[name of ECS cluster]
 export F5_PASSWORD="[password]"
+export SQS_URL="sqs queue URL"
 ```
 
 Example of running the script.
