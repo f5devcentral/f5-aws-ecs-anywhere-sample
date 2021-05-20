@@ -104,7 +104,7 @@ class EcsAnyWhereIpPort(object):
         update_needed = False
         sqs_wait = seconds
         if sqs_wait > 20:
-            sqs_wait = 20
+            sqs_wait = 10
         while ( time.time() - start_time ) < seconds:
             response = self.sqs_client.receive_message(QueueUrl = sqs_queue,
                                                        MaxNumberOfMessages = 10,
