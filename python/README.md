@@ -1,11 +1,36 @@
 # Python Examples
+## Creating a F5 BIG-IP Controller for ECS
 
-## ecs_anywhere_ip_port.py
+This directory contains Python code for automating the configuration of a BIG-IP device based on the service definitions in ECS Anywhere.
+
+### Building the Controller
+
+To create the controller you will first need to build your own Docker container.  For example
+
+```
+$ docker build -t bigip-ecs-ctrl .
+```
+
+Once you have built the container you can either run it locally or in ECS.  
+
+### Running the controller in ECS
+
+Before you can run the controller in ECS you need to have appropriate taskExecution and taskRoles configured.
+
+In general the controller will need read-only access to ECS/SSM and a specific AWS Secret (BIG-IP password)
+
+See [external-task-definition-bigip-ecs-ctrl.json](external-task-definition-bigip-ecs-ctrl.json) for an example of how to create a task definition.
+
+You will want to modify the input variables to match your environment.  
+
+## Python files
+
+### ecs_anywhere_ip_port.py
 
 This script is meant to be a generic method of getting the IP/Port that is associated with
 an ECS Service.  It expects that the service is deployed in ECS Anywhere.
 
-## bigip-event-driven.py
+### bigip-ecs-ctrl.py
 
 This script is used with ``ecs_anywhere_ip_port.py``.  It will run in the foreground and query
 the AWS APIs to update a BIG-IP configuration with ECS Services.
@@ -28,16 +53,16 @@ The script can also handle more complex examples of mapping to specific ports/co
 - f5-external-port-80: 8080
 - f5-external-port-443: nginx:8443
 
-You can customize the ``template.json`` file to suit your needs.
+You can customize the [template.json](template.json) file to suit your needs.
 
 Example of running the script.
 
 ```
- ./bigip-event-driven.py --url https://192.168.1.200 --tenant EcsAnywhere
- INFO:botocore.credentials:Found credentials in environment variables.
-INFO:root:updating services
-INFO:root:generating templates
-INFO:root:updating pools
+ ./bigip-ecs-ctrl.py --url https://192.168.1.245 --tenant EcsAnywhere
+ 2021-05-19 21:06:14,749 - bigip_ecs_controller - INFO - updating service: chen-ecs-anywhere-svc
+2021-05-19 21:06:14,749 - bigip_ecs_controller - INFO - generating templates
+2021-05-19 21:06:15,894 - bigip_ecs_controller - INFO - updating pool: chen-ecs-anywhere-svc_8080
+2021-05-19 21:06:26,115 - bigip_ecs_controller - INFO - updating service: chen-ecs-anywhere-svc
 ```
 ## How it works
 

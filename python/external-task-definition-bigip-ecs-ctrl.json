@@ -1,0 +1,50 @@
+{
+  "requiresCompatibilities": [
+    "EXTERNAL"
+  ],
+  "executionRoleArn": "arn:aws:iam::[account id]:role/bigipEcsCtrlTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::[account id]:role/bigipEcsCtrlTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "bigip-ecs-ctrl",
+      "image": "[Your Private Repo]/bigip-ecs-ctrl:latest",
+      "memory": 256,
+      "cpu": 256,
+      "essential": true,
+      "secrets": [
+        {
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:[account id]:secret:bigip-password",
+          "name": "F5_PASSWORD"
+        }
+      ],
+      "environment": [
+        {
+          "name": "AWS_DEFAULT_REGION",
+          "value": "us-east-1"
+        },
+        {
+          "name": "URL",
+          "value": "https://192.168.1.245"
+        },
+        {
+          "name": "TENANT",
+          "value": "EcsAnywhere"
+        },
+        {
+          "name": "CLUSTER_NAME",
+          "value": "your-ecs-anywhere"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "ecsanywhere-logs",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "logs"
+        }
+      }
+    }
+  ],
+  "networkMode": "bridge",
+  "family": "bigip-ecs-ctrl"
+}
