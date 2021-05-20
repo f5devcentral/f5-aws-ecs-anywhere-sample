@@ -55,6 +55,15 @@ The script can also handle more complex examples of mapping to specific ports/co
 
 You can customize the [template.json](template.json) file to suit your needs.
 
+There are some environment variables you will want to set.
+
+```
+# AWS credentials or via task/instance role
+export AWS_DEFAULT_REGION=us-east-1
+export CLUSTER_NAME=[name of ECS cluster]
+export F5_PASSWORD="[password]"
+```
+
 Example of running the script.
 
 ```
