@@ -8,6 +8,7 @@ import json
 import sys
 import logging
 import boto3
+import time
 
 #
 # Demo of automating a BIG-IP configuration for ECS AnyWhere services.
@@ -33,7 +34,7 @@ ECS_TEMPLATE = """ {
 logger = logging.getLogger('bigip_ecs_controller')
 
 class BigipEcsController(object):
-    def __init__(self, cluster, username,password, url, tenant, template_file, token=False):
+    def __init__(self, cluster, username,password, url, tenant, template_file, interval = 30, sqs_url = None,token=False):
         self.cluster = cluster
         self.username = username
         self.password = password
@@ -42,6 +43,9 @@ class BigipEcsController(object):
         self.client = EcsAnyWhereIpPort(cluster)
         self.template_txt = open(template_file).read()
         self.service_map = {}
+        self.interval = interval
+        self.sqs_url = sqs_url
+        self.last_update = time.time()
         if token:
             self.icr = iControlRESTSession(username, password, token='tmos')
         else:
@@ -147,6 +151,17 @@ class BigipEcsController(object):
                 logger.info('updating pool: %s' %(svc_port))                
                 r = self.icr.post(self.url + "/mgmt/shared/service-discovery/task/~%s~%s~%s_pool/nodes" %(self.tenant,svc_port,svc_port),data=json.dumps(output_nodes))
                 #print(r)
+    def wait(self):
+        if self.sqs_url:
+            time_delta = time.time() - self.last_update
+            if time_delta < self.interval:
+                time.sleep(self.interval)            
+            output =  self.client.wait_on_sqs_queue(self.sqs_url,self.interval)
+        else:
+            time.sleep(self.interval)
+            output = True
+        self.last_update = time.time()
+        return output
 
 if __name__ == "__main__":
     import argparse
@@ -159,10 +174,9 @@ if __name__ == "__main__":
     parser.add_argument("--token",help="use token (remote auth)",action="store_true",default=False)
     parser.add_argument("-u", "--username",default='admin')
     parser.add_argument("-p", "--password",default='admin')
-    parser.add_argument("--password-s3-bucket",dest="password_s3_bucket")
-    parser.add_argument("--password-s3-key",dest="password_s3_key")        
-    parser.add_argument("--interval",help="polling cycle",default=10,type=int)
+    parser.add_argument("--interval",help="polling cycle",default=30,type=int)
     parser.add_argument("--level",help="log level (default info)",default="info")
+    parser.add_argument('--sqs_url',help='sqs queue with task change events')
 #    parser.add_argument("--run-once",help="run once",action="store_true",default=False)
     args = parser.parse_args()
 
@@ -172,7 +186,9 @@ if __name__ == "__main__":
     cluster = args.cluster
 #    service = args.service
     tenant = args.tenant
-
+    url = args.url
+    sqs_url = args.sqs_url
+    interval = args.interval
     
     logger.setLevel(logging.INFO)
 
@@ -194,17 +210,17 @@ if __name__ == "__main__":
     if 'F5_PASSWORD' in os.environ:
         password = os.environ['F5_PASSWORD']
 
-    if args.password_s3_bucket and args.password_s3_key:
-        s3_client = boto3.resource('s3')
-        object = s3_client.Object(args.password_s3_bucket,args.password_s3_key)
-        password = object.get()['Body'].read().strip()
-
     if 'CLUSTER_NAME' in os.environ:
         cluster = os.environ['CLUSTER_NAME']
 
-    url = args.url
     if 'URL' in os.environ:
         url = os.environ['URL']
+
+    if 'SQS_URL' in os.environ:
+        sqs_url = os.environ['SQS_URL']
+
+    if 'INTERVAL' in os.environ:
+        interval = os.environ['INTERVAL']        
 
     if 'TENANT' in os.environ:
         tenant = os.environ['TENANT']        
@@ -212,7 +228,9 @@ if __name__ == "__main__":
     if 'SERVICE_NAME' in os.environ:
         service = os.environ['SERVICE_NAME']    
 
-    controller = BigipEcsController(cluster, username, password, url, tenant, args.template)
+    controller = BigipEcsController(cluster, username, password, url, tenant, args.template,
+                                    interval = args.interval,
+                                    sqs_url = sqs_url)
     import time
     while 1:
         try:
@@ -220,8 +238,10 @@ if __name__ == "__main__":
             logger.info('generating templates')        
             controller.generate_template()
             controller.update_pools()
+            while not controller.wait():
+                pass
         except Exception as e:
             logger.error(e)
             logger.exception("message")
             pass
-        time.sleep(args.interval)
+
