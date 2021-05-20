@@ -1,5 +1,9 @@
 {
   "class": "AS3",
+  "controls": {
+    "class":"Controls",
+    "userAgent":"bigip-ecs-ctrl/v0.0.1"
+  },
   "action": "deploy",
   "persist": true,
   "declaration": {
