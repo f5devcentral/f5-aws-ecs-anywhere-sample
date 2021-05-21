@@ -33,15 +33,20 @@ class EcsAnyWhereIpPort(object):
             tasks = taskArns
             ).get('tasks')
         containerInstanceArns = [a.get('containerInstanceArn') for a in tasks]
-        ports = []
+
         task_map = {}
+        ports = []
 
 #        print(tasks[0]['containers'][0]['networkBindings'])
-        for container in tasks[0]['containers']:
-            for port in container['networkBindings']:
-                p = {'containerName':container['name'],'containerPort':port['containerPort'],'hostPort':port['hostPort']}
-                if p not in ports:
-                    ports.append(p)
+        container_instance_ports = {}
+        for task in tasks:
+            task_ports = []
+            for container in task['containers']:
+                for port in container['networkBindings']:
+                    p = {'containerName':container['name'],'containerPort':port['containerPort'],'hostPort':port['hostPort']}
+                    if p not in task_ports:
+                        task_ports.append(p)
+            container_instance_ports[task.get('containerInstanceArn')] = task_ports
                     
         port = tasks[0]['containers'][0]['networkBindings'][0]['hostPort']        
         container_instances = self.ecs_client.describe_container_instances(
@@ -59,10 +64,13 @@ class EcsAnyWhereIpPort(object):
                     'valueSet': instanceIds
                 }])
         instance_map = dict([(a['InstanceId'],a['IPAddress']) for a in instance_information.get('InstanceInformationList')])
-
+        instance_ports = {}
+        for container_instance,ports in  container_instance_ports.items():
+            instance_ports[container_map[container_instance]] = ports
         ip_and_ports = []                
         for id,ip in instance_map.items():
-            ip_and_ports.append({'id':id,'ip':ip,'port':port,'ports':ports})            
+            instance_port = instance_ports[id]
+            ip_and_ports.append({'id':id,'ip':ip,'port':instance_port[0]['hostPort'],'ports':instance_port})
         return ip_and_ports
     def wait_service(self, service):
         waiter = self.ecs_client.get_waiter('services_stable')
@@ -134,10 +142,10 @@ if __name__ == "__main__":
     client = EcsAnyWhereIpPort(args.cluster)
 #    services = client.list_services()
 #    print(client.describe_service(services))
-    print(client.wait_on_sqs_queue(args.sqs_url))
+#    print(client.wait_on_sqs_queue(args.sqs_url))
 #    print(client.list_services())
 #    for svc in client.list_services():
 #        print(svc)
 #        print(json.dumps(client.get_ip_port(svc),indent=4))        
 #    client.wait_service(args.service)
-#    print(json.dumps(client.get_ip_port(args.service),indent=4))
+    print(json.dumps(client.get_ip_port(args.service),indent=4))
