@@ -114,24 +114,23 @@ class BigipEcsController(object):
                 template['declaration'][self.tenant][svc_name][svc_name]['virtualPort']=int(input_params['port'])
             #print(json.dumps(template,indent=4))
             #print(self.service_map)
-        template = json.dumps(template,indent=4)
+        rendered_template = json.dumps(template,indent=4)
         #print(template)
-        r = self.icr.post(self.url + "/mgmt/shared/appsvcs/declare",data=json.dumps(template))
-
+        logger.debug(json.dumps(template))
+        r = self.icr.post(self.url + "/mgmt/shared/appsvcs/declare",data=rendered_template)
+        
     def update_pools(self,services=None):
 
         for svc_name,input_params in self.service_map.items():
+            # retrieve instance -> ports
             nodes = self.client.get_ip_port(svc_name)
-
+            # retrieve ports associated with service
             input_ports = input_params['ports']
-            if not nodes:
-                container_ports = []
-                hostPort = -1
-            else:
-                container_ports = nodes[0]['ports']
-                hostPort = nodes[0]['port']
 
             for p in input_ports:
+                if not nodes:
+                    container_ports = []
+                    hostPort = -1
                 output_nodes = []                
                 port = p[0]
                 targetPort = p[1]
@@ -139,18 +138,23 @@ class BigipEcsController(object):
                 if ':' in targetPort:
                     (containerName,targetPort) = p[1].split(':')
                 targetPort = int(targetPort)
-                for container in container_ports:
-                    if containerName and containerName == container['containerName'] and container['containerPort'] == targetPort:
-                        hostPort = container['hostPort']
-                    elif container['containerPort'] == targetPort:
-                        hostPort = container['hostPort']
                 for n in nodes:
+                    container_ports = n['ports']
+                    hostPort = n['port']
+                    for container in container_ports:
+                        if containerName and containerName == container['containerName'] and container['containerPort'] == targetPort:
+                            hostPort = container['hostPort']
+                        elif container['containerPort'] == targetPort:
+                            hostPort = container['hostPort']
                     output_nodes.append({'ip':n['ip'],'port':hostPort,'id':n['id']})
 
                 svc_port = "%s_%s" %(svc_name, port)
-                logger.info('updating pool: %s' %(svc_port))                
+                logger.info('updating pool: %s' %(svc_port))
+                logger.debug(json.dumps(output_nodes))
                 r = self.icr.post(self.url + "/mgmt/shared/service-discovery/task/~%s~%s~%s_pool/nodes" %(self.tenant,svc_port,svc_port),data=json.dumps(output_nodes))
-                #print(r)
+                logger.debug(r.json())
+        r = self.icr.post(self.url + "/mgmt/tm/sys/config",data="{\"command\":\"save\"}")
+        logger.debug(r.json())   
     def wait(self):
         if self.sqs_url:
             time_delta = time.time() - self.last_update
@@ -189,13 +193,17 @@ if __name__ == "__main__":
     url = args.url
     sqs_url = args.sqs_url
     interval = args.interval
+    log_level = args.level
+
+    if 'LOG_LEVEL' in os.environ:
+        log_level = os.environ['LOG_LEVEL']    
     
     logger.setLevel(logging.INFO)
 
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
 
-    if args.level == 'debug':
+    if log_level == 'debug':
         logger.setLevel(logging.DEBUG)
         ch.setLevel(logging.DEBUG)
 
