@@ -240,6 +240,8 @@ if __name__ == "__main__":
                                     interval = args.interval,
                                     sqs_url = sqs_url)
     import time
+    strike_time = 0
+    strike_cnt = 0
     while 1:
         try:
             controller.update_services()
@@ -251,5 +253,11 @@ if __name__ == "__main__":
         except Exception as e:
             logger.error(e)
             logger.exception("message")
+            if (time.time() - strike_time) >= 120:
+                strike_time = time.time()
+                strike_cnt = 0
+            strike_cnt += 1
+            logger.error(strike_cnt)
+            time.sleep(strike_cnt * 30)
             pass
 
