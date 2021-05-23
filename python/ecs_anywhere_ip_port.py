@@ -10,6 +10,7 @@ class EcsAnyWhereIpPort(object):
         self.ssm_client = boto3.client('ssm')
         self.sqs_client = boto3.client('sqs')
         self.task_cache = {}
+        self.container_instance_cache = {}        
         self.instance_cache = {}
     def get_tasks(self,service):
         # TODO
@@ -23,23 +24,42 @@ class EcsAnyWhereIpPort(object):
             return []
         return taskArns
     def get_ip_port(self,service,cache=True):
+        
+        if not cache:
+            self.task_cache = {}
+            self.container_instance_cache = {}        
+            self.instance_cache = {}
+            
         taskArns = self.get_tasks(service)
         if not taskArns:
             return []
         # TODO
         # limited to 100 Arns
-        tasks = self.ecs_client.describe_tasks(
-            cluster = self.cluster,
-            tasks = taskArns
-            ).get('tasks')
+        # cached tasks
+        cached_tasks = list(set(taskArns).intersection(set(self.task_cache.keys())))
+        tasks_to_get = list(set(taskArns) - set(self.task_cache.keys()))
+        tasks = []
+        
+        if cached_tasks:
+            tasks = [self.task_cache[t] for t in cached_tasks]
+            
+        if tasks_to_get:
+            tasks.extend(self.ecs_client.describe_tasks(
+                cluster = self.cluster,
+                tasks = tasks_to_get
+            ).get('tasks',[]))
+            
         containerInstanceArns = [a.get('containerInstanceArn') for a in tasks]
 
         task_map = {}
         ports = []
 
-#        print(tasks[0]['containers'][0]['networkBindings'])
         container_instance_ports = {}
+        container_instance_ip = {}
+        
         for task in tasks:
+            if task['taskArn'] not in cached_tasks:
+                self.task_cache[task['taskArn']] = task
             task_ports = []
             for container in task['containers']:
                 for port in container['networkBindings']:
@@ -47,23 +67,47 @@ class EcsAnyWhereIpPort(object):
                     if p not in task_ports:
                         task_ports.append(p)
             container_instance_ports[task.get('containerInstanceArn')] = task_ports
-                    
-        port = tasks[0]['containers'][0]['networkBindings'][0]['hostPort']        
-        container_instances = self.ecs_client.describe_container_instances(
+            container_instance_ip[task.get('containerInstanceArn')] = {}
+
+            
+        cached_container_instances = list(set(containerInstanceArns).intersection(set(self.container_instance_cache.keys())))
+        container_instances_to_get = list(set(containerInstanceArns) - set(self.container_instance_cache.keys()))
+        
+        container_instances = []
+        
+        if cached_container_instances:
+            tasks = [self.task_cache[t] for t in cached_tasks]
+
+        
+        container_instances.extend(self.ecs_client.describe_container_instances(
             cluster = self.cluster,
             containerInstances = containerInstanceArns
-            )
-        container_map = dict([(a['containerInstanceArn'],a['ec2InstanceId']) for a in container_instances.get('containerInstances')])
-        
-        instanceIds = [a.get('ec2InstanceId') for a in container_instances.get('containerInstances')]
+            ).get('containerInstances',[]))
 
-        instance_information = self.ssm_client.describe_instance_information(
+        container_map = {}
+        for container_instance in container_instances:
+            self.container_instance_cache[container_instance['containerInstanceArn']] = container_instance           
+            container_map[container_instance['containerInstanceArn']] = container_instance['ec2InstanceId']
+        
+        instanceIds = [a.get('ec2InstanceId') for a in container_instances]
+
+        cached_instances = list(set(instanceIds).intersection(set(self.instance_cache.keys())))
+        instances_to_get = list(set(instanceIds) - set(self.instance_cache.keys()))
+        instances = []
+        
+        if cached_instances:
+            instances = [self.task_cache[t] for t in cached_instances]
+            
+        if instances_to_get:
+            instances.extend(self.ssm_client.describe_instance_information(
             InstanceInformationFilterList=[
                 {
                     'key': 'InstanceIds',
                     'valueSet': instanceIds
-                }])
-        instance_map = dict([(a['InstanceId'],a['IPAddress']) for a in instance_information.get('InstanceInformationList')])
+                }]).get('InstanceInformationList',[]))
+        
+        instance_map = dict([(a['InstanceId'],a['IPAddress']) for a in instances])
+        
         instance_ports = {}
         for container_instance,ports in  container_instance_ports.items():
             instance_ports[container_map[container_instance]] = ports
@@ -148,4 +192,9 @@ if __name__ == "__main__":
 #        print(svc)
 #        print(json.dumps(client.get_ip_port(svc),indent=4))        
 #    client.wait_service(args.service)
+    starttime = time.time()
     print(json.dumps(client.get_ip_port(args.service),indent=4))
+#    print(time.time() - starttime)
+#    starttime = time.time()    
+#    print(json.dumps(client.get_ip_port(args.service),indent=4))    
+#    print(time.time() - starttime)
