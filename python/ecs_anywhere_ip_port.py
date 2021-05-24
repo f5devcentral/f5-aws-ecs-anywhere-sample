@@ -64,7 +64,6 @@ class EcsAnyWhereIpPort(object):
             skiptask = False
             for container in task['containers']:
                 if 'networkBindings' not in container:
-                    print("skipping",task['taskArn'])
                     skiptask = True
                     continue
                     del self.task_cache[task['taskArn']]
