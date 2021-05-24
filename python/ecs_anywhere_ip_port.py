@@ -54,21 +54,33 @@ class EcsAnyWhereIpPort(object):
         task_map = {}
         ports = []
 
-        container_instance_ports = {}
         container_instance_ip = {}
+        task_ports_map = {}
         
         for task in tasks:
             if task['taskArn'] not in cached_tasks:
                 self.task_cache[task['taskArn']] = task
             task_ports = []
+            skiptask = False
             for container in task['containers']:
+                if 'networkBindings' not in container:
+                    print("skipping",task['taskArn'])
+                    skiptask = True
+                    continue
+                    del self.task_cache[task['taskArn']]
                 for port in container['networkBindings']:
                     p = {'containerName':container['name'],'containerPort':port['containerPort'],'hostPort':port['hostPort']}
                     if p not in task_ports:
                         task_ports.append(p)
-            container_instance_ports[task.get('containerInstanceArn')] = task_ports
+            task_ports_map[task['taskArn']] = task_ports
+            if skiptask:
+                containerInstanceArns.remove(task['containerInstanceArn'])
+                continue
+               
             container_instance_ip[task.get('containerInstanceArn')] = {}
 
+        if not containerInstanceArns:
+            return []
             
         cached_container_instances = list(set(containerInstanceArns).intersection(set(self.container_instance_cache.keys())))
         container_instances_to_get = list(set(containerInstanceArns) - set(self.container_instance_cache.keys()))
@@ -108,13 +120,14 @@ class EcsAnyWhereIpPort(object):
         
         instance_map = dict([(a['InstanceId'],a['IPAddress']) for a in instances])
         
-        instance_ports = {}
-        for container_instance,ports in  container_instance_ports.items():
-            instance_ports[container_map[container_instance]] = ports
-        ip_and_ports = []                
-        for id,ip in instance_map.items():
-            instance_port = instance_ports[id]
-            ip_and_ports.append({'id':id,'ip':ip,'port':instance_port[0]['hostPort'],'ports':instance_port})
+        ip_and_ports = []
+        
+        for task in tasks:
+            containerInstanceArn = task.get('containerInstanceArn')
+            instance_id = container_map[containerInstanceArn]
+            ip_addr = instance_map[instance_id]
+            instance_port = task_ports_map[task['taskArn']]
+            ip_and_ports.append({'id':instance_id,'ip':ip_addr,'port':instance_port[0]['hostPort'],'ports':instance_port})
         return ip_and_ports
     def wait_service(self, service):
         waiter = self.ecs_client.get_waiter('services_stable')
