@@ -43,6 +43,7 @@ class BigipEcsController(object):
         self.tenant = tenant
         self.client = EcsAnyWhereIpPort(cluster)
         self.template_txt = open(template_file).read()
+        self.template_cache = ""
         self.service_map = {}
         self.interval = interval
         self.sqs_url = sqs_url
@@ -86,6 +87,8 @@ class BigipEcsController(object):
                     targetPort = tag.get('value')
                     try:
                         port = int(port)
+                        if ':' in targetPort:
+                            (containerName,targetPort) = targetPort.split(':')                        
                         targetPort = int(targetPort)
                     except Exception as exe:
                         logger.error("bad port for svc %s" %(svc))
@@ -132,12 +135,18 @@ class BigipEcsController(object):
         rendered_template = json.dumps(template,indent=4)
         #print(template)
         services = self.service_map.keys()
-        if services:
-            logger.info("updated LB config for %s" %(", ".join(services)))
-        else:
-            logger.info("empty LB config")
+
+        template_txt = json.dumps(template)        
         logger.debug(json.dumps(template))
-        r = self.icr.post(self.url + "/mgmt/shared/appsvcs/declare",data=rendered_template)
+        if template_txt != self.template_cache:
+            if services:
+                logger.info("updated LB config for %s" %(", ".join(services)))
+            else:
+                logger.info("empty LB config")            
+            r = self.icr.post(self.url + "/mgmt/shared/appsvcs/declare",data=rendered_template)
+            self.template_cache = template_txt
+            
+            
         
     def update_pools(self,services=None):
 
@@ -164,9 +173,10 @@ class BigipEcsController(object):
                     for container in container_ports:
                         if containerName and containerName == container['containerName'] and container['containerPort'] == targetPort:
                             hostPort = container['hostPort']
-                        elif container['containerPort'] == targetPort:
+                            output_nodes.append({'ip':n['ip'],'port':hostPort,'id':n['id']})                            
+                        elif not containerName and  container['containerPort'] == targetPort:
                             hostPort = container['hostPort']
-                    output_nodes.append({'ip':n['ip'],'port':hostPort,'id':n['id']})
+                            output_nodes.append({'ip':n['ip'],'port':hostPort,'id':n['id']})
 
                 svc_port = "%s_%s" %(svc_name, port)
                 logger.info('updating pool: %s' %(svc_port))
@@ -184,6 +194,7 @@ class BigipEcsController(object):
         else:
             time.sleep(self.interval)
             output = True
+            time.sleep(1)
         self.last_update = time.time()
         return output
 
@@ -262,6 +273,8 @@ if __name__ == "__main__":
     import time
     strike_time = 0
     strike_cnt = 0
+    import os
+    logger.info("version: 0.0.%d" %(os.stat(__file__)).st_mtime)
     while 1:
         try:
             controller.update_services()
