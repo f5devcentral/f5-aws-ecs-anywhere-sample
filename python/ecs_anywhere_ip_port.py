@@ -58,8 +58,6 @@ class EcsAnyWhereIpPort(object):
         task_ports_map = {}
         
         for task in tasks:
-            if task['taskArn'] not in cached_tasks:
-                self.task_cache[task['taskArn']] = task
             task_ports = []
             skiptask = False
             for container in task['containers']:
@@ -75,7 +73,9 @@ class EcsAnyWhereIpPort(object):
             if skiptask:
                 containerInstanceArns.remove(task['containerInstanceArn'])
                 continue
-               
+            if task['taskArn'] not in cached_tasks:
+                self.task_cache[task['taskArn']] = task
+                           
             container_instance_ip[task.get('containerInstanceArn')] = {}
 
         if not containerInstanceArns:
