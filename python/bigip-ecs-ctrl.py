@@ -9,6 +9,7 @@ import sys
 import logging
 import boto3
 import time
+import ipaddress
 
 #
 # Demo of automating a BIG-IP configuration for ECS AnyWhere services.
@@ -72,9 +73,23 @@ class BigipEcsController(object):
             for tag in tags:
                 if tag.get('key') == 'f5-external-ip':
                     ip = tag.get('value')
+                    try:
+                        ipaddress.ip_address(ip)
+                    except Exception as exec:
+                        logger.error("bad IP for %s" %(svc))
+                        ip = None
+                        continue
                     create_config = True
                     logger.info('updating service: %s' %(svc))
                 if tag.get('key').startswith('f5-external-port-'):
+                    port = tag.get('key')[17:]
+                    targetPort = tag.get('value')
+                    try:
+                        port = int(port)
+                        targetPort = int(targetPort)
+                    except Exception as exe:
+                        logger.error("bad port for svc %s" %(svc))
+                        continue
                     ports.append((tag.get('key')[17:],tag.get('value')))
             if ip:
                 self.service_map[svc] = {'ip':ip }
@@ -116,6 +131,11 @@ class BigipEcsController(object):
             #print(self.service_map)
         rendered_template = json.dumps(template,indent=4)
         #print(template)
+        services = self.service_map.keys()
+        if services:
+            logger.info("updated LB config for %s" %(", ".join(services)))
+        else:
+            logger.info("empty LB config")
         logger.debug(json.dumps(template))
         r = self.icr.post(self.url + "/mgmt/shared/appsvcs/declare",data=rendered_template)
         
@@ -245,7 +265,6 @@ if __name__ == "__main__":
     while 1:
         try:
             controller.update_services()
-            logger.info('generating templates')        
             controller.generate_template()
             controller.update_pools()
             while not controller.wait():
