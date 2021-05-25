@@ -52,7 +52,10 @@ class BigipEcsController(object):
             self.icr = iControlRESTSession(username, password, token='tmos')
         else:
             self.icr = iControlRESTSession(username, password)
-        
+
+    def check_device(self):
+        r = self.icr.get(self.url + "/mgmt/shared/appsvcs/info")
+        return r.json()
     def update_services(self,cache=False):
 
         services = self.client.list_services()
@@ -275,6 +278,12 @@ if __name__ == "__main__":
     strike_cnt = 0
     import os
     logger.info("version: 0.0.%d" %(os.stat(__file__)).st_mtime)
+    try:
+        logger.info("as3: %s" %(controller.check_device()))
+    except Exception as e:
+        logger.error(e)
+        logger.exception("message")
+        sys.exit(1)
     while 1:
         try:
             controller.update_services()
