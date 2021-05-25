@@ -2,12 +2,12 @@
   "requiresCompatibilities": [
     "EXTERNAL"
   ],
-  "executionRoleArn": "arn:aws:iam::[account id]:role/bigipEcsCtrlTaskExecutionRole",
-  "taskRoleArn": "arn:aws:iam::[account id]:role/bigipEcsCtrlTaskRole",
+  "executionRoleArn": "arn:aws:iam::[account id]:role/bigipEcsCtlrTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::[account id]:role/bigipEcsCtlrTaskRole",
   "containerDefinitions": [
     {
       "name": "bigip-ecs-ctrl",
-      "image": "[Your Private Repo]/bigip-ecs-ctrl:latest",
+      "image": "[Your Private Repo]/bigip-ecs-ctlr:latest",
       "memory": 256,
       "cpu": 256,
       "essential": true,
@@ -46,5 +46,5 @@
     }
   ],
   "networkMode": "bridge",
-  "family": "bigip-ecs-ctrl"
+  "family": "bigip-ecs-ctlr"
 }
