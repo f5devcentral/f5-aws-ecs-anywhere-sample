@@ -32,7 +32,7 @@ ECS_TEMPLATE = """ {
                 "pool": "svc_pool"
              }}"""
 
-logger = logging.getLogger('bigip_ecs_ctrl')
+logger = logging.getLogger('bigip-ecs-ctlr')
 
 class BigipEcsController(object):
     def __init__(self, cluster, username,password, url, tenant, template_file, interval = 30, sqs_url = None,token=False):

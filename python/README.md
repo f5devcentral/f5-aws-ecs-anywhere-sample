@@ -8,7 +8,7 @@ This directory contains Python code for automating the configuration of a BIG-IP
 To create the controller you will first need to build your own Docker container.  For example
 
 ```
-$ docker build -t bigip-ecs-ctrl .
+$ docker build -t bigip-ecs-ctlr .
 ```
 
 Once you have built the container you can either run it locally or in ECS.  
@@ -19,7 +19,7 @@ Before you can run the controller in ECS you need to have appropriate taskExecut
 
 In general the controller will need read-only access to ECS/SSM/SQS and a specific AWS Secret (BIG-IP password)
 
-See [external-task-definition-bigip-ecs-ctrl.json](external-task-definition-bigip-ecs-ctrl.json) for an example of how to create a task definition.
+See [external-task-definition-bigip-ecs-ctlr.json](external-task-definition-bigip-ecs-ctlr.json) for an example of how to create a task definition.
 
 You will want to modify the input variables to match your environment.
 
@@ -36,7 +36,7 @@ and only apply updates if there are messages in the queue.
 This script is meant to be a generic method of getting the IP/Port that is associated with
 an ECS Service.  It expects that the service is deployed in ECS Anywhere.
 
-### bigip-ecs-ctrl.py
+### bigip-ecs-ctlr.py
 
 This script is used with ``ecs_anywhere_ip_port.py``.  It will run in the foreground and query
 the AWS APIs to update a BIG-IP configuration with ECS Services.
