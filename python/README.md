@@ -23,6 +23,8 @@ See [external-task-definition-bigip-ecs-ctlr.json](external-task-definition-bigi
 
 You will want to modify the input variables to match your environment.
 
+The `terraform` directory contains a sample of a working environment.  See the [README.md](../terraform/README.md) for more details.
+
 ### SQS Queue
 
 The controller by default will check for updates every 30 seconds.  You can also configure the controller
@@ -61,24 +63,28 @@ The script can also handle more complex examples of mapping to specific ports/co
 
 You can customize the [template.json](template.json) file to suit your needs.
 
-There are some environment variables you will want to set.
+There are some environment variables you will need to set.
 
 ```
 # AWS credentials or via task/instance role
 export AWS_DEFAULT_REGION=us-east-1
 export CLUSTER_NAME=[name of ECS cluster]
 export F5_PASSWORD="[password]"
-export SQS_URL="sqs queue URL"
+export SQS_URL="sqs queue URL (optional, will poll otherwise)"
+export URL="[URL to BIG-IP control-plane]"
 ```
 
 Example of running the script.
 
 ```
- ./bigip-ecs-ctrl.py --url https://192.168.1.245 --tenant EcsAnywhere
- 2021-05-19 21:06:14,749 - bigip_ecs_controller - INFO - updating service: chen-ecs-anywhere-svc
-2021-05-19 21:06:14,749 - bigip_ecs_controller - INFO - generating templates
-2021-05-19 21:06:15,894 - bigip_ecs_controller - INFO - updating pool: chen-ecs-anywhere-svc_8080
-2021-05-19 21:06:26,115 - bigip_ecs_controller - INFO - updating service: chen-ecs-anywhere-svc
+ ./bigip-ecs-ctlr.py
+2021-05-25 06:12:00,623 - bigip-ecs-ctlr - INFO - version: 0.0.1621933865
+2021-05-25 06:12:01,108 - bigip-ecs-ctlr - INFO - updating service: chen-ecs-anywhere-svc2
+2021-05-25 06:12:01,108 - bigip-ecs-ctlr - INFO - updating service: chen-ecs-anywhere-svc
+2021-05-25 06:12:01,109 - bigip-ecs-ctlr - INFO - updated LB config for chen-ecs-anywhere-svc2, chen-ecs-anywhere-svc
+2021-05-25 06:12:04,849 - bigip-ecs-ctlr - INFO - updating pool: chen-ecs-anywhere-svc2_80
+2021-05-25 06:12:04,866 - bigip-ecs-ctlr - INFO - updating pool: chen-ecs-anywhere-svc2_443
+2021-05-25 06:12:05,018 - bigip-ecs-ctlr - INFO - updating pool: chen-ecs-anywhere-svc_8080
 ```
 ## How it works
 
