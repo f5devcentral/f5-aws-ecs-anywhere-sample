@@ -18,8 +18,8 @@ variable "account_id" {
 variable "bigip_tenant" {
   description = "Tenant/Partition for ECS config on BIG-IP"
 }
-variable "bigip_url" {
-  description = "URL to BIG-IP"
+variable "bigip_urls" {
+  description = "URL(s) to BIG-IP (comma separated)"
 }
 variable "bigip_ecs_ctlr" {
   description = "BIG-IP ECS Controller image location"

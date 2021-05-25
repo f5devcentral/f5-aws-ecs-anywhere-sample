@@ -23,7 +23,7 @@
           "value": "us-east-1"
         },
         {
-          "name": "URL",
+          "name": "BIGIP_URLS",
           "value": "https://192.168.1.245"
         },
         {
@@ -33,7 +33,9 @@
         {
           "name": "CLUSTER_NAME",
           "value": "your-ecs-anywhere"
-        }
+        },
+        {"name":"SQS_URL",
+	 "value":"https://sqs.us-east-1.amazonaws.com/123456/your-ecs-cluster"}	  
       ],
       "logConfiguration": {
         "logDriver": "awslogs",

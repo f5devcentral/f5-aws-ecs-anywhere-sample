@@ -71,7 +71,7 @@ export AWS_DEFAULT_REGION=us-east-1
 export CLUSTER_NAME=[name of ECS cluster]
 export F5_PASSWORD="[password]"
 export SQS_URL="sqs queue URL (optional, will poll otherwise)"
-export URL="[URL to BIG-IP control-plane]"
+export BIGIP_URLS="[URL(s) to BIG-IP control-plane]"
 ```
 
 Example of running the script.

@@ -35,11 +35,11 @@ ECS_TEMPLATE = """ {
 logger = logging.getLogger('bigip-ecs-ctlr')
 
 class BigipEcsController(object):
-    def __init__(self, cluster, username,password, url, tenant, template_file, interval = 30, sqs_url = None,token=False):
+    def __init__(self, cluster, username,password, bigip_urls, tenant, template_file, interval = 30, sqs_url = None,token=False):
         self.cluster = cluster
         self.username = username
         self.password = password
-        self.url = url
+        self.bigip_urls = bigip_urls
         self.tenant = tenant
         self.client = EcsAnyWhereIpPort(cluster)
         self.template_txt = open(template_file).read()
@@ -48,14 +48,41 @@ class BigipEcsController(object):
         self.interval = interval
         self.sqs_url = sqs_url
         self.last_update = time.time()
-        if token:
-            self.icr = iControlRESTSession(username, password, token='tmos')
-        else:
-            self.icr = iControlRESTSession(username, password)
+        self.icrs = {}
+        for url in bigip_urls:
+            if token:
+                self.icrs[url] = iControlRESTSession(username, password, token='tmos')
+            else:
+                self.icrs[url] = iControlRESTSession(username, password)
 
+    def get(self,uri):
+        output = {}
+        for (mgmt_url, icr) in self.icrs.items():
+            try:
+                r = icr.get(mgmt_url + uri)
+                output[mgmt_url] = r.json()
+            except Exception as exe:
+                output[mgmt_url] = exe
+                logger.error(exe)
+        return output
+    def post(self,uri,data):
+        output = {}
+        save_exe = None
+        one_good = False
+        for (mgmt_url, icr) in self.icrs.items():
+            try:
+                r = icr.post(mgmt_url + uri,data=data)
+                output[mgmt_url] = r.json()
+                one_good = True
+            except Exception as exe:
+                save_exe = exe
+                logger.error(exe)
+        if not one_good:
+            raise save_exe
+        return output        
+                
     def check_device(self):
-        r = self.icr.get(self.url + "/mgmt/shared/appsvcs/info")
-        return r.json()
+        return self.get("/mgmt/shared/appsvcs/info")
     def update_services(self,cache=False):
 
         services = self.client.list_services()
@@ -145,8 +172,9 @@ class BigipEcsController(object):
             if services:
                 logger.info("updated LB config for %s" %(", ".join(services)))
             else:
-                logger.info("empty LB config")            
-            r = self.icr.post(self.url + "/mgmt/shared/appsvcs/declare",data=rendered_template)
+                logger.info("empty LB config")
+                r = self.post("/mgmt/shared/appsvcs/declare",data=rendered_template)
+                    
             self.template_cache = template_txt
             
             
@@ -184,10 +212,16 @@ class BigipEcsController(object):
                 svc_port = "%s_%s" %(svc_name, port)
                 logger.info('updating pool: %s' %(svc_port))
                 logger.debug(json.dumps(output_nodes))
-                r = self.icr.post(self.url + "/mgmt/shared/service-discovery/task/~%s~%s~%s_pool/nodes" %(self.tenant,svc_port,svc_port),data=json.dumps(output_nodes))
-                logger.debug(r.json())
-        r = self.icr.post(self.url + "/mgmt/tm/sys/config",data="{\"command\":\"save\"}")
-        logger.debug(r.json())   
+                for url in self.bigip_urls:
+                    try:
+                        r = self.post("/mgmt/shared/service-discovery/task/~%s~%s~%s_pool/nodes" %(self.tenant,svc_port,svc_port),data=json.dumps(output_nodes))
+                        logger.debug(r)                        
+                    except Exception as e:
+                        logger.error(e)
+                        logger.exception("message")
+                        
+
+                r = self.post("/mgmt/tm/sys/config",data="{\"command\":\"save\"}")            
     def wait(self):
         if self.sqs_url:
             time_delta = time.time() - self.last_update
@@ -207,7 +241,7 @@ if __name__ == "__main__":
     parser.add_argument('--cluster',help='name of ECS cluster')
     parser.add_argument('--tenant',help='AS3 tenant')
 #    parser.add_argument('--service')
-    parser.add_argument('--url',help='address of mgmt / control-plane of BIG-IP device')
+    parser.add_argument('--bigip_urls',help='comma separated address(es) of mgmt / control-plane of BIG-IP device')
     parser.add_argument('--template',default='template.json',help='template of AS3 declaration')
     parser.add_argument("--token",help="use token (remote auth)",action="store_true",default=False)
     parser.add_argument("-u", "--username",default='admin')
@@ -224,7 +258,9 @@ if __name__ == "__main__":
     cluster = args.cluster
 #    service = args.service
     tenant = args.tenant
-    url = args.url
+    if args.bigip_urls:
+        bigip_urls = args.bigip_urls.split(',')
+
     sqs_url = args.sqs_url
     interval = args.interval
     log_level = args.level
@@ -255,8 +291,8 @@ if __name__ == "__main__":
     if 'CLUSTER_NAME' in os.environ:
         cluster = os.environ['CLUSTER_NAME']
 
-    if 'URL' in os.environ:
-        url = os.environ['URL']
+    if 'BIGIP_URLS' in os.environ:
+        bigip_urls = os.environ['BIGIP_URLS'].split(',')
 
     if 'SQS_URL' in os.environ:
         sqs_url = os.environ['SQS_URL']
@@ -270,7 +306,7 @@ if __name__ == "__main__":
     if 'SERVICE_NAME' in os.environ:
         service = os.environ['SERVICE_NAME']    
 
-    controller = BigipEcsController(cluster, username, password, url, tenant, args.template,
+    controller = BigipEcsController(cluster, username, password, bigip_urls, tenant, args.template,
                                     interval = args.interval,
                                     sqs_url = sqs_url)
     import time
@@ -281,6 +317,9 @@ if __name__ == "__main__":
     try:
         logger.info("as3: %s" %(controller.check_device()))
     except Exception as e:
+        if e.response.status_code == 404:
+            logger.error("AS3 not found.  Please ensure BIG-IP is up and AS3 is installed")
+            sys.exit(1)            
         logger.error(e)
         logger.exception("message")
         sys.exit(1)

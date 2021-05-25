@@ -24,8 +24,8 @@ resource "aws_ecs_task_definition" "bigip-ecs-ctlr" {
           "value" : var.region
         },
         {
-          "name" : "URL",
-          "value" : var.bigip_url
+          "name" : "BIGIP_URLS",
+          "value" : var.bigip_urls
         },
         {
           "name" : "TENANT",
