@@ -52,10 +52,10 @@ resource "aws_ecs_task_definition" "bigip-ecs-ctlr" {
   ])
 }
 
-# resource "aws_ecs_service" "bigip-ecs-ctlr" {
-#   name            = "${var.prefix}-bigip-ecs-ctlr"
-#   cluster         = var.ecs_cluster
-#   task_definition = aws_ecs_task_definition.bigip-ecs-ctlr.arn
-#   desired_count   = 1
-#   launch_type     = "external"
-# }
+resource "aws_ecs_service" "bigip-ecs-ctlr" {
+  name            = "${var.prefix}-bigip-ecs-ctlr"
+  cluster         = var.ecs_cluster
+  task_definition = aws_ecs_task_definition.bigip-ecs-ctlr.arn
+  desired_count   = 1
+  launch_type     = "EXTERNAL"
+}
