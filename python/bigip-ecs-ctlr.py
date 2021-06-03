@@ -171,6 +171,7 @@ class BigipEcsController(object):
         if template_txt != self.template_cache:
             if services:
                 logger.info("updated LB config for %s" %(", ".join(services)))
+                r = self.post("/mgmt/shared/appsvcs/declare",data=rendered_template)                
             else:
                 logger.info("empty LB config")
                 r = self.post("/mgmt/shared/appsvcs/declare",data=rendered_template)
