@@ -1,6 +1,12 @@
 resource "aws_s3_bucket" "tf_s3_bucket" {
   bucket_prefix = "${var.prefix}-s3bucket"
 }
+
+resource "aws_s3_bucket_object" "object" {
+  bucket         = aws_s3_bucket.tf_s3_bucket.id
+  key            = "top-secret-file.txt"
+  content_base64 = "dGhpcy1pcy1hLXNlY3JldAo="
+}
 resource "aws_vpc_endpoint" "s3" {
   vpc_id          = aws_vpc.f5-volterra-vpc.id
   service_name    = "com.amazonaws.${var.aws_region}.s3"
