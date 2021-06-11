@@ -1,11 +1,11 @@
 data "aws_ami" "amazon-linux-2" {
- most_recent = true
- owners = ["amazon"]
- 
- filter {
-   name   = "name"
-   values = ["amzn2-ami-hvm*"]
- }
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm*"]
+  }
 }
 
 data "aws_ami" "ubuntu" {
@@ -25,9 +25,9 @@ data "aws_ami" "ubuntu" {
 }
 
 resource "aws_instance" "f5-jumphost-1" {
-  ami           = data.aws_ami.amazon-linux-2.id
-  instance_type = "t2.micro"
-  subnet_id     = aws_subnet.f5-volterra-external.id
+  ami                    = data.aws_ami.amazon-linux-2.id
+  instance_type          = "t2.micro"
+  subnet_id              = aws_subnet.f5-volterra-external.id
   vpc_security_group_ids = [aws_security_group.volterra-vpc.id]
   key_name               = var.ssh_key
   user_data              = <<-EOF

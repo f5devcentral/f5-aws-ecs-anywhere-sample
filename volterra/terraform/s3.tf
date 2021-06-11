@@ -2,16 +2,16 @@ resource "aws_s3_bucket" "tf_s3_bucket" {
   bucket_prefix = "${var.prefix}-s3bucket"
 }
 resource "aws_vpc_endpoint" "s3" {
-  vpc_id       = aws_vpc.f5-volterra-vpc.id
-  service_name = "com.amazonaws.${var.aws_region}.s3"
+  vpc_id          = aws_vpc.f5-volterra-vpc.id
+  service_name    = "com.amazonaws.${var.aws_region}.s3"
   route_table_ids = [aws_route_table.f5-volterra-vpc-external-rt.id]
 }
 
 resource "aws_vpc_endpoint" "interface-s3" {
-  vpc_id       = aws_vpc.f5-volterra-vpc.id
-  service_name = "com.amazonaws.${var.aws_region}.s3"
-  vpc_endpoint_type = "Interface"
-  subnet_ids      = [aws_subnet.f5-volterra-workload.id]
+  vpc_id             = aws_vpc.f5-volterra-vpc.id
+  service_name       = "com.amazonaws.${var.aws_region}.s3"
+  vpc_endpoint_type  = "Interface"
+  subnet_ids         = [aws_subnet.f5-volterra-workload.id]
   security_group_ids = [aws_security_group.volterra-vpc.id]
 }
 
@@ -34,19 +34,19 @@ resource "aws_s3_bucket_policy" "restrict" {
           aws_s3_bucket.tf_s3_bucket.arn,
           "${aws_s3_bucket.tf_s3_bucket.arn}/*",
         ]
-        Condition =  {
-        NotIpAddress = {
-          "aws:SourceIp" = [
-            "${var.trusted_ip}"
-          ]
-	  },
-	  StringNotEquals = {
-          "aws:SourceVpce" = [
-            aws_vpc_endpoint.interface-s3.id
-          ]
+        Condition = {
+          NotIpAddress = {
+            "aws:SourceIp" = [
+              "${var.trusted_ip}"
+            ]
+          },
+          StringNotEquals = {
+            "aws:SourceVpce" = [
+              aws_vpc_endpoint.interface-s3.id
+            ]
+          }
         }
       }
-  }
-  ]
+    ]
   })
 }

@@ -5,7 +5,7 @@ resource "aws_efs_file_system" "volterra" {
   }
 }
 resource "aws_efs_mount_target" "volterra" {
-  file_system_id = aws_efs_file_system.volterra.id
-  subnet_id      = aws_subnet.f5-volterra-workload.id
+  file_system_id  = aws_efs_file_system.volterra.id
+  subnet_id       = aws_subnet.f5-volterra-workload.id
   security_groups = [aws_security_group.volterra-vpc.id]
 }
